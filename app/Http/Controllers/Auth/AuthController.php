@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Tymon\JWTAuth\Exceptions\JWTException;
 use JWTAuth;
+use Tymon\JWTAuth\Exceptions\TokenBlacklistedException;
 
 class AuthController extends Controller
 {
@@ -38,20 +40,26 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        $validator = Validator::make($request->only('token'), [
-            'token' => 'required'
-        ]);
-
-        if ($validator->fails()) {
-            return $this->resErrorJson([], $validator->messages(), 401);
-        }
-
         try {
-            JWTAuth::invalidate($request->token);
+            $user = JWTAuth::parseToken()->authenticate();
+    
+            if (!auth()->check()) {
+                return $this->resErrorJson([], 'Token is invalid', 401);
+            }
+
+            JWTAuth::parseToken()->invalidate();
 
             return $this->resSuccessJson([], 'User has been logged out');
-        } catch (JWTException $exception) {
-            return $this->resErrorJson([], 'Internal server error');
+        } catch (JWTException $e) {
+            if ($e instanceof TokenBlacklistedException) {
+                return response()->json([
+                    'code' => 401,
+                    'message' => 'Token is invalid',
+                    'result' => []
+                ], 401);
+            } else {
+                return $this->resErrorJson([], 'Internal server error');
+            }
         }
     }
 }
